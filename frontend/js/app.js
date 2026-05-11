@@ -27,7 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initTabs();
   initVideoUpload();
   initWebcamControls();
-  loadModelInfo();
 });
 
 /* ════════════════════════════════════════════════════
@@ -266,25 +265,6 @@ function pushHistory(data) {
        ${p.emoji} ${p.action} <em>${(p.confidence * 100).toFixed(0)}%</em>
      </span>`
   ).join('');
-}
-
-/* ════════════════════════════════════════════════════
-   MODEL INFO (update hero stats from API)
-════════════════════════════════════════════════════ */
-async function loadModelInfo() {
-  try {
-    const res  = await fetch('/api/model-info');
-    if (!res.ok) return;
-    const data = await res.json();
-    modelClasses = data.classes || modelClasses;
-
-    const el1 = document.getElementById('statAccuracy');
-    const el2 = document.getElementById('statLogoCv');
-    if (el1) el1.innerHTML = `${data.test_accuracy}<span class="stat-pct">%</span>`;
-    if (el2) el2.innerHTML = `${data.logo_cv_mean}<span class="stat-pct">%</span>`;
-  } catch (e) {
-    console.warn('Model info unavailable:', e.message);
-  }
 }
 
 /* ════════════════════════════════════════════════════
