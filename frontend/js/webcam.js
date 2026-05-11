@@ -54,10 +54,14 @@ class WebcamController {
     this.intervalId = setInterval(() => this._captureAndPredict(), this.PREDICT_INTERVAL);
   }
 
-  /** Public: trigger one-shot capture + predict */
+  /** Public: trigger one-shot capture + predict (bypasses auto-interval) */
   async captureNow() {
-    if (!this.stream || this.isCapturing) return;
+    if (!this.stream) return;
+    clearInterval(this.intervalId);
+    this.intervalId  = null;
+    this.isCapturing = false;
     await this._captureAndPredict();
+    if (this.stream) this._startCapture();
   }
 
   async _captureAndPredict() {

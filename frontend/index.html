@@ -86,7 +86,10 @@
           </div>
           <div class="video-preview hidden" id="videoPreview">
             <video id="videoPlayer" controls preload="metadata"></video>
-            <div class="video-meta" id="videoMeta"></div>
+            <div class="video-meta-row">
+              <div class="video-meta" id="videoMeta"></div>
+              <button class="btn btn-outline btn-sm" id="changeVideoBtn">🔄 Đổi video</button>
+            </div>
           </div>
           <button class="btn btn-primary btn-block" id="analyzeBtn" disabled>
             <span>🔍</span> Phân tích ngay
@@ -211,7 +214,9 @@
     </div>
 
     <div class="tab-pane active insight-pane" id="insights-tab-ablation">
-      <div class="chart-wrap"><canvas id="ablationChart"></canvas></div>
+      <div class="chart-wrap">
+        <canvas id="ablationChart"></canvas>
+      </div>
     </div>
 
     <div class="tab-pane insight-pane" id="insights-tab-matrix">

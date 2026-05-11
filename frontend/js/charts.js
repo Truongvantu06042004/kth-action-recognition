@@ -65,6 +65,7 @@ function createAblationChart(canvasId) {
     options: {
       indexAxis: 'y',
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -75,7 +76,7 @@ function createAblationChart(canvasId) {
           text: 'Ablation Study — Đóng góp từng loại đặc trưng vào độ chính xác',
           font: { size: 13, weight: '600', family: 'Inter' },
           color: '#111827',
-          padding: { bottom: 20 },
+          padding: { bottom: 16 },
         },
       },
       scales: {

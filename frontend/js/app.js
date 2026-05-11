@@ -76,6 +76,7 @@ function initVideoUpload() {
   browseBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
   dropZone.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+  document.getElementById('changeVideoBtn')?.addEventListener('click', resetVideoUpload);
 
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
@@ -182,6 +183,23 @@ function resetVideoResults() {
   document.getElementById('videoResultsContent').classList.add('hidden');
   document.getElementById('videoPlaceholder').classList.remove('hidden');
   document.getElementById('speedBadge').classList.add('hidden');
+}
+
+function resetVideoUpload() {
+  currentFile = null;
+  lastResult  = null;
+
+  const player = document.getElementById('videoPlayer');
+  URL.revokeObjectURL(player.src);
+  player.src = '';
+
+  document.getElementById('videoPreview').classList.add('hidden');
+  document.getElementById('dropZone').classList.remove('hidden');
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('fileInput').value = '';
+
+  if (probChart) { probChart.destroy(); probChart = null; }
+  resetVideoResults();
 }
 
 /* ════════════════════════════════════════════════════
