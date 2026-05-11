@@ -161,7 +161,6 @@
           <div class="cam-controls">
             <button class="btn btn-success" id="startCamBtn">🎬 Bật Camera</button>
             <button class="btn btn-danger  hidden" id="stopCamBtn">⏹ Tắt Camera</button>
-            <button class="btn btn-outline" id="captureNowBtn" disabled>📸 Chụp & Dự đoán</button>
           </div>
           <p class="cam-hint">⚡ Tự động dự đoán mỗi 2.5 giây · cần ≥30 frame</p>
         </div>
@@ -198,40 +197,6 @@
   </div>
 </section>
 
-<!-- ══════════════════════════════════════ MODEL INSIGHTS -->
-<section class="section insights-section">
-  <div class="container">
-    <div class="section-header">
-      <h2>🧠 Model Insights</h2>
-      <p class="section-sub">Phân tích chi tiết hiệu năng mô hình và đặc trưng</p>
-    </div>
-
-    <div class="tab-nav" id="insightsTabNav">
-      <button class="tab-btn active" data-group="insights" data-tab="ablation">📊 Ablation Study</button>
-      <button class="tab-btn"        data-group="insights" data-tab="matrix">🔥 Confusion Matrix</button>
-      <button class="tab-btn"        data-group="insights" data-tab="pipeline">📈 Pipeline</button>
-      <button class="tab-btn"        data-group="insights" data-tab="classes">ℹ️ About Classes</button>
-    </div>
-
-    <div class="tab-pane active insight-pane" id="insights-tab-ablation">
-      <div class="chart-wrap">
-        <canvas id="ablationChart"></canvas>
-      </div>
-    </div>
-
-    <div class="tab-pane insight-pane" id="insights-tab-matrix">
-      <div class="matrix-wrap"><canvas id="confusionCanvas"></canvas></div>
-    </div>
-
-    <div class="tab-pane insight-pane" id="insights-tab-pipeline">
-      <div id="pipelineDiagram" class="pipeline-wrap"></div>
-    </div>
-
-    <div class="tab-pane insight-pane" id="insights-tab-classes">
-      <div class="classes-grid" id="classesGrid"></div>
-    </div>
-  </div>
-</section>
 
 <!-- ═══════════════════════════════════════════════ FOOTER -->
 <footer class="footer">

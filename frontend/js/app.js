@@ -6,7 +6,6 @@
 let currentFile       = null;
 let probChart         = null;
 let donutChart        = null;
-let ablationChart     = null;
 let webcamCtrl        = null;
 let predHistory       = [];
 let lastResult        = null;
@@ -29,10 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initVideoUpload();
   initWebcamControls();
   loadModelInfo();
-  renderPipeline();
-  renderClassCards();
-  // Init ablation chart (default active tab)
-  ablationChart = createAblationChart('ablationChart');
 });
 
 /* ════════════════════════════════════════════════════
@@ -57,11 +52,6 @@ function switchTab(btn) {
   const pane = document.getElementById(`${group}-tab-${tab}`);
   if (pane) pane.classList.add('active');
 
-  // Lazy-init charts when their pane becomes visible
-  if (group === 'insights') {
-    if (tab === 'matrix')   drawConfusionMatrix('confusionCanvas');
-    if (tab === 'ablation' && !ablationChart) ablationChart = createAblationChart('ablationChart');
-  }
 }
 
 /* ════════════════════════════════════════════════════
@@ -208,7 +198,6 @@ function resetVideoUpload() {
 function initWebcamControls() {
   document.getElementById('startCamBtn').addEventListener('click', startCamera);
   document.getElementById('stopCamBtn').addEventListener('click', stopCamera);
-  document.getElementById('captureNowBtn').addEventListener('click', () => webcamCtrl?.captureNow());
 
   document.addEventListener('prediction', e => onLivePrediction(e.detail));
   document.addEventListener('webcam:predicting', e => {
@@ -228,7 +217,6 @@ async function startCamera() {
     document.getElementById('camLiveTag').classList.remove('hidden');
     document.getElementById('startCamBtn').classList.add('hidden');
     document.getElementById('stopCamBtn').classList.remove('hidden');
-    document.getElementById('captureNowBtn').disabled = false;
 
     if (!donutChart) donutChart = createDonutChart('donutChart', modelClasses);
   } catch (err) {
@@ -245,7 +233,6 @@ function stopCamera() {
   document.getElementById('camAnalyzing').classList.add('hidden');
   document.getElementById('startCamBtn').classList.remove('hidden');
   document.getElementById('stopCamBtn').classList.add('hidden');
-  document.getElementById('captureNowBtn').disabled = true;
 }
 
 function onLivePrediction(data) {
@@ -298,112 +285,6 @@ async function loadModelInfo() {
   } catch (e) {
     console.warn('Model info unavailable:', e.message);
   }
-}
-
-/* ════════════════════════════════════════════════════
-   PIPELINE SVG DIAGRAM
-════════════════════════════════════════════════════ */
-function renderPipeline() {
-  const wrap = document.getElementById('pipelineDiagram');
-  if (!wrap) return;
-
-  wrap.innerHTML = `
-<svg viewBox="0 0 920 290" xmlns="http://www.w3.org/2000/svg"
-     style="width:100%;max-width:920px;display:block;margin:0 auto;font-family:Inter,sans-serif">
-  <defs>
-    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-      <polygon points="0 0,8 3,0 6" fill="#9CA3AF"/>
-    </marker>
-  </defs>
-
-  <!-- Video -->
-  <rect x="12" y="115" width="82" height="46" rx="8" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
-  <text x="53" y="134" text-anchor="middle" font-size="12" font-weight="700" fill="#1D4ED8">Video</text>
-  <text x="53" y="150" text-anchor="middle" font-size="10" fill="#6B7280">input</text>
-
-  <!-- Feature blocks -->
-  <rect x="134" y="24"  width="116" height="44" rx="8" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
-  <text x="192" y="43"  text-anchor="middle" font-size="12" font-weight="700" fill="#1D4ED8">HOG</text>
-  <text x="192" y="58"  text-anchor="middle" font-size="10" fill="#6B7280">3528d — shape</text>
-
-  <rect x="134" y="90"  width="116" height="44" rx="8" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
-  <text x="192" y="109" text-anchor="middle" font-size="12" font-weight="700" fill="#059669">Optical Flow</text>
-  <text x="192" y="124" text-anchor="middle" font-size="10" fill="#6B7280">24d — motion</text>
-
-  <rect x="134" y="156" width="116" height="44" rx="8" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
-  <text x="192" y="175" text-anchor="middle" font-size="12" font-weight="700" fill="#B45309">MHI</text>
-  <text x="192" y="190" text-anchor="middle" font-size="10" fill="#6B7280">1767d — history</text>
-
-  <rect x="134" y="222" width="116" height="44" rx="8" fill="#F5F3FF" stroke="#8B5CF6" stroke-width="1.5"/>
-  <text x="192" y="241" text-anchor="middle" font-size="12" font-weight="700" fill="#6D28D9">IDT</text>
-  <text x="192" y="256" text-anchor="middle" font-size="10" fill="#6B7280">96d — trajectories</text>
-
-  <!-- Arrows: video → features -->
-  <line x1="94"  y1="138" x2="132" y2="46"  stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="94"  y1="138" x2="132" y2="112" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="94"  y1="138" x2="132" y2="178" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="94"  y1="138" x2="132" y2="244" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arr)"/>
-
-  <!-- Concat -->
-  <rect x="298" y="108" width="108" height="64" rx="8" fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1.5"/>
-  <text x="352" y="133" text-anchor="middle" font-size="12" font-weight="700" fill="#374151">Concat</text>
-  <text x="352" y="152" text-anchor="middle" font-size="11" fill="#6B7280">5415 dims</text>
-
-  <!-- Arrows: features → concat -->
-  <line x1="250" y1="46"  x2="296" y2="122" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="250" y1="112" x2="296" y2="132" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="250" y1="178" x2="296" y2="148" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="250" y1="244" x2="296" y2="158" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arr)"/>
-
-  <!-- Scaler -->
-  <rect x="454" y="108" width="108" height="64" rx="8" fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1.5"/>
-  <text x="508" y="133" text-anchor="middle" font-size="12" font-weight="700" fill="#374151">StandardScaler</text>
-  <text x="508" y="152" text-anchor="middle" font-size="10" fill="#6B7280">zero mean, unit var</text>
-  <line x1="406" y1="140" x2="452" y2="140" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arr)"/>
-
-  <!-- PCA -->
-  <rect x="610" y="108" width="108" height="64" rx="8" fill="#FDF4FF" stroke="#A855F7" stroke-width="1.5"/>
-  <text x="664" y="130" text-anchor="middle" font-size="12" font-weight="700" fill="#7E22CE">PCA</text>
-  <text x="664" y="148" text-anchor="middle" font-size="10" fill="#9333EA">330d (95% var.)</text>
-  <text x="664" y="163" text-anchor="middle" font-size="9"  fill="#A78BFA">5415→330</text>
-  <line x1="562" y1="140" x2="608" y2="140" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arr)"/>
-
-  <!-- SVM -->
-  <rect x="766" y="108" width="108" height="64" rx="8" fill="#FFF1F2" stroke="#EF4444" stroke-width="1.5"/>
-  <text x="820" y="128" text-anchor="middle" font-size="12" font-weight="700" fill="#B91C1C">SVM</text>
-  <text x="820" y="145" text-anchor="middle" font-size="10" fill="#DC2626">Linear · C=0.1</text>
-  <text x="820" y="161" text-anchor="middle" font-size="9"  fill="#6B7280">Acc 80.2%</text>
-  <line x1="718" y1="140" x2="764" y2="140" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arr)"/>
-
-  <!-- Output labels -->
-  <line x1="874" y1="140" x2="896" y2="140" stroke="#CBD5E1" stroke-width="1.5" marker-end="url(#arr)"/>
-  <text x="898" y="118" font-size="10" font-weight="600" fill="#059669">boxing</text>
-  <text x="898" y="132" font-size="10" fill="#6B7280">handclap.</text>
-  <text x="898" y="146" font-size="10" fill="#6B7280">handwav.</text>
-  <text x="898" y="160" font-size="10" fill="#6B7280">jogging</text>
-  <text x="898" y="174" font-size="10" fill="#6B7280">running</text>
-  <text x="898" y="188" font-size="10" fill="#6B7280">walking</text>
-</svg>`;
-}
-
-/* ════════════════════════════════════════════════════
-   ABOUT CLASSES GRID
-════════════════════════════════════════════════════ */
-function renderClassCards() {
-  const grid = document.getElementById('classesGrid');
-  if (!grid) return;
-
-  grid.innerHTML = Object.entries(CLASS_META).map(([name, m]) => {
-    const rc = m.recall >= 90 ? '#059669'
-             : m.recall >= 70 ? '#D97706'
-             :                   '#DC2626';
-    return `<div class="class-card">
-      <div class="class-emoji">${m.emoji}</div>
-      <div class="class-name">${name}</div>
-      <span class="recall-badge" style="background:${rc}18;color:${rc}">Recall ${m.recall}%</span>
-      <p class="class-desc">${m.desc}</p>
-    </div>`;
-  }).join('');
 }
 
 /* ════════════════════════════════════════════════════
