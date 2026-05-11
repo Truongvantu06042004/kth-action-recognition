@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KTH Action Recognition — Human Motion Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════ HERO -->
+<header class="hero">
+  <div class="container">
+    <div class="hero-inner">
+      <div class="hero-title-group">
+        <div class="hero-badge">🏃 Human Action Recognition</div>
+        <h1 class="hero-title">KTH Action Recognition</h1>
+        <p class="hero-sub">HOG · Optical Flow · MHI · Improved Dense Trajectories → SVM Linear</p>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-card">
+          <div class="stat-value" id="statAccuracy">80.2<span class="stat-pct">%</span></div>
+          <div class="stat-label">Test Accuracy</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statLogoCv">77.6<span class="stat-pct">%</span></div>
+          <div class="stat-label">LOGO-CV Mean</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">6</div>
+          <div class="stat-label">Action Classes</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">25</div>
+          <div class="stat-label">Subjects</div>
+        </div>
+      </div>
+    </div>
+    <div class="pipeline-mini">
+      <span class="pipe-tag hog">HOG <em>3528d</em></span>
+      <span class="pipe-sep">+</span>
+      <span class="pipe-tag of">OF <em>24d</em></span>
+      <span class="pipe-sep">+</span>
+      <span class="pipe-tag mhi">MHI <em>1767d</em></span>
+      <span class="pipe-sep">+</span>
+      <span class="pipe-tag idt">IDT <em>96d</em></span>
+      <span class="pipe-sep">→</span>
+      <span class="pipe-tag scaler">Scaler</span>
+      <span class="pipe-sep">→</span>
+      <span class="pipe-tag pca">PCA <em>330d</em></span>
+      <span class="pipe-sep">→</span>
+      <span class="pipe-tag svm">SVM Linear</span>
+      <span class="pipe-sep">→</span>
+      <span class="pipe-tag out">Label</span>
+    </div>
+  </div>
+</header>
+
+<!-- ════════════════════════════════════════════ DEMO SECTION -->
+<section class="section demo-section">
+  <div class="container">
+    <div class="section-header">
+      <h2>🎯 Demo Nhận Dạng Hành Động</h2>
+      <p class="section-sub">Tải lên video hoặc dùng webcam để nhận dạng thời gian thực</p>
+    </div>
+
+    <div class="tab-nav" id="demoTabNav">
+      <button class="tab-btn active" data-group="demo" data-tab="video">📹 Upload Video</button>
+      <button class="tab-btn"        data-group="demo" data-tab="webcam">📷 Webcam Live</button>
+    </div>
+
+    <!-- ─── VIDEO UPLOAD ─── -->
+    <div class="tab-pane active" id="demo-tab-video">
+      <div class="two-col">
+        <!-- Left -->
+        <div>
+          <div class="drop-zone" id="dropZone">
+            <input type="file" id="fileInput" accept=".avi,.mp4,.mov,.mkv,.webm" hidden>
+            <div class="drop-icon">🎬</div>
+            <p class="drop-text">Kéo thả video vào đây</p>
+            <p class="drop-hint">hoặc <button class="link-btn" id="browseBtn">chọn file</button> từ máy tính</p>
+            <p class="drop-formats">Hỗ trợ: .avi · .mp4 · .mov · .webm · .mkv</p>
+          </div>
+          <div class="video-preview hidden" id="videoPreview">
+            <video id="videoPlayer" controls preload="metadata"></video>
+            <div class="video-meta" id="videoMeta"></div>
+          </div>
+          <button class="btn btn-primary btn-block" id="analyzeBtn" disabled>
+            <span>🔍</span> Phân tích ngay
+          </button>
+          <div class="speed-badge hidden" id="speedBadge">
+            <span>⚡ CPU Mode</span>
+            <span id="inferenceTime">— ms</span>
+          </div>
+        </div>
+        <!-- Right -->
+        <div>
+          <div class="results-panel" id="videoResultsPanel">
+            <div id="videoPlaceholder" class="results-placeholder">
+              <div class="ph-icon">🎯</div>
+              <p>Upload và phân tích video<br>để xem kết quả tại đây</p>
+            </div>
+            <div id="videoResultsContent" class="hidden">
+              <div class="result-banner" id="resultBanner">
+                <div class="res-emoji" id="resultEmoji">🏃</div>
+                <div class="res-info">
+                  <div class="res-label" id="resultLabel">—</div>
+                  <div class="res-conf"  id="resultConf">—%</div>
+                </div>
+                <div class="gauge-wrap">
+                  <svg class="gauge-svg" viewBox="0 0 100 58">
+                    <path d="M10,54 A44,44 0 0,1 90,54" fill="none" stroke="#E5E7EB" stroke-width="10" stroke-linecap="round"/>
+                    <path d="M10,54 A44,44 0 0,1 90,54" fill="none" stroke="#10B981" stroke-width="10" stroke-linecap="round"
+                          id="gaugeArc" stroke-dasharray="0 138.23" style="transition:all .5s ease"/>
+                  </svg>
+                  <div class="gauge-num" id="gaugeNum">0%</div>
+                </div>
+              </div>
+              <div class="prob-section">
+                <p class="prob-title">Xác suất từng lớp</p>
+                <canvas id="probChart" height="190"></canvas>
+              </div>
+              <div class="result-footer">
+                <button class="btn btn-outline btn-sm" id="exportBtn">📥 Xuất báo cáo</button>
+                <span class="frame-info" id="frameInfo"></span>
+              </div>
+            </div>
+            <div id="videoLoading" class="loading-overlay hidden">
+              <div class="spinner"></div>
+              <p>Đang trích xuất đặc trưng…</p>
+              <small>HOG · Optical Flow · MHI · IDT</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── WEBCAM LIVE ─── -->
+    <div class="tab-pane" id="demo-tab-webcam">
+      <div class="two-col">
+        <!-- Left -->
+        <div>
+          <div class="cam-wrap" id="camWrap">
+            <video id="webcamVideo" autoplay muted playsinline style="display:none"></video>
+            <canvas id="webcamCanvas"></canvas>
+            <div class="cam-ph" id="camPh">
+              <div class="ph-icon">📷</div>
+              <p>Nhấn "Bật Camera" để bắt đầu</p>
+            </div>
+            <div class="cam-live-tag hidden" id="camLiveTag"><span class="blink-dot"></span>LIVE</div>
+            <div class="cam-analyzing hidden" id="camAnalyzing">
+              <div class="spinner-sm"></div> Đang phân tích…
+            </div>
+          </div>
+          <div class="cam-controls">
+            <button class="btn btn-success" id="startCamBtn">🎬 Bật Camera</button>
+            <button class="btn btn-danger  hidden" id="stopCamBtn">⏹ Tắt Camera</button>
+            <button class="btn btn-outline" id="captureNowBtn" disabled>📸 Chụp & Dự đoán</button>
+          </div>
+          <p class="cam-hint">⚡ Tự động dự đoán mỗi 2.5 giây · cần ≥30 frame</p>
+        </div>
+        <!-- Right -->
+        <div>
+          <div class="results-panel">
+            <h3 class="live-header">⚡ Live Prediction</h3>
+            <div id="livePlaceholder" class="results-placeholder">
+              <div class="ph-icon">📡</div>
+              <p>Đang chờ tín hiệu webcam…</p>
+            </div>
+            <div id="liveData" class="hidden">
+              <div class="result-banner" id="liveBanner">
+                <div class="res-emoji" id="liveEmoji">🏃</div>
+                <div class="res-info">
+                  <div class="res-label" id="liveLabel">—</div>
+                  <div class="res-conf"  id="liveConf" >—%</div>
+                </div>
+              </div>
+              <div class="donut-wrap">
+                <canvas id="donutChart" width="220" height="220"></canvas>
+              </div>
+            </div>
+            <div class="history-wrap">
+              <p class="history-title">📊 Lịch sử (10 gần nhất)</p>
+              <div class="history-chips" id="historyChips">
+                <span class="hist-empty">Chưa có dự đoán nào</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════ MODEL INSIGHTS -->
+<section class="section insights-section">
+  <div class="container">
+    <div class="section-header">
+      <h2>🧠 Model Insights</h2>
+      <p class="section-sub">Phân tích chi tiết hiệu năng mô hình và đặc trưng</p>
+    </div>
+
+    <div class="tab-nav" id="insightsTabNav">
+      <button class="tab-btn active" data-group="insights" data-tab="ablation">📊 Ablation Study</button>
+      <button class="tab-btn"        data-group="insights" data-tab="matrix">🔥 Confusion Matrix</button>
+      <button class="tab-btn"        data-group="insights" data-tab="pipeline">📈 Pipeline</button>
+      <button class="tab-btn"        data-group="insights" data-tab="classes">ℹ️ About Classes</button>
+    </div>
+
+    <div class="tab-pane active insight-pane" id="insights-tab-ablation">
+      <div class="chart-wrap"><canvas id="ablationChart"></canvas></div>
+    </div>
+
+    <div class="tab-pane insight-pane" id="insights-tab-matrix">
+      <div class="matrix-wrap"><canvas id="confusionCanvas"></canvas></div>
+    </div>
+
+    <div class="tab-pane insight-pane" id="insights-tab-pipeline">
+      <div id="pipelineDiagram" class="pipeline-wrap"></div>
+    </div>
+
+    <div class="tab-pane insight-pane" id="insights-tab-classes">
+      <div class="classes-grid" id="classesGrid"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ FOOTER -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <strong>🏃 KTH Action Recognition</strong>
+        <p>Đại học Bách Khoa Đà Nẵng</p>
+        <p>Đồ án cuối kỳ — 2024/2025</p>
+      </div>
+      <div>
+        <strong>Model</strong>
+        <p>SVM Linear (C=0.1) · scikit-learn 1.6.1</p>
+        <p>Test Accuracy: 80.2% · LOGO-CV: 77.6%</p>
+      </div>
+      <div>
+        <strong>Features</strong>
+        <p>HOG (3528) + OF (24) + MHI (1767) + IDT (96)</p>
+        <p>= 5415d → PCA 330d</p>
+      </div>
+      <div>
+        <strong>Dataset</strong>
+        <p>KTH Human Motion Database</p>
+        <p><em>Schuldt, Laptev, Caputo — ICPR 2004</em></p>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- ══════════════════════════════════════ EXPORT MODAL -->
+<div class="modal-bg hidden" id="exportModal">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <h3>📥 Xuất Báo Cáo</h3>
+      <button class="modal-close-btn" id="modalClose">✕</button>
+    </div>
+    <canvas id="exportCanvas" style="width:100%;border-radius:8px;border:1px solid #E5E7EB"></canvas>
+    <div class="modal-ftr">
+      <button class="btn btn-primary" id="downloadBtn">⬇️ Tải PNG</button>
+      <button class="btn btn-outline" id="modalCancelBtn">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/charts.js"></script>
+<script src="js/webcam.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

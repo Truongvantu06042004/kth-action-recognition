@@ -1,0 +1,194 @@
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+import joblib
+import cv2
+import numpy as np
+import base64
+import tempfile
+import os
+import time
+import pathlib
+
+from feature_extractor import extract_all_features, preprocess_frames, detect_motion_bbox
+
+app = FastAPI(title="KTH Action Recognition API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Load model
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "model", "kth_svm_idt_model.pkl")
+
+try:
+    artifacts  = joblib.load(MODEL_PATH)
+    model      = artifacts['best_model']
+    scaler     = artifacts['scaler']
+    pca        = artifacts['pca']
+    le         = artifacts['label_encoder']
+    CLASSES    = list(le.classes_)
+    MODEL_INFO = artifacts.get('config', {})
+    print(f"[OK] Model loaded. Classes: {CLASSES}")
+    print(f"     Test accuracy: {MODEL_INFO.get('test_accuracy', 'N/A')}")
+except Exception as e:
+    print(f"[ERROR] Failed to load model from {MODEL_PATH}: {e}")
+    artifacts = model = scaler = pca = le = None
+    CLASSES    = ['boxing', 'handclapping', 'handwaving', 'jogging', 'running', 'walking']
+    MODEL_INFO = {}
+
+
+def _check_model():
+    if model is None:
+        raise HTTPException(503, "Model not loaded. Copy kth_svm_idt_model.pkl to backend/model/")
+
+
+def run_inference(gray_frames):
+    feat   = extract_all_features(gray_frames)
+    X_sc   = scaler.transform(feat.reshape(1, -1))
+    X_pca  = pca.transform(X_sc)
+    pred   = model.predict(X_pca)[0]
+    label  = le.inverse_transform([pred])[0]
+    try:
+        proba = model.predict_proba(X_pca)[0]
+    except Exception:
+        proba = np.zeros(len(CLASSES))
+        proba[CLASSES.index(label)] = 1.0
+    return label, proba, dict(zip(CLASSES, proba.tolist()))
+
+
+# ─── Endpoint: Upload video file ──────────────────────────────────────────────
+@app.post("/api/predict/video")
+async def predict_video(file: UploadFile = File(...)):
+    _check_model()
+    ext = os.path.splitext(file.filename.lower())[1]
+    if ext not in ('.avi', '.mp4', '.mov', '.mkv', '.webm'):
+        raise HTTPException(400, "Unsupported format. Use .avi / .mp4 / .mov / .webm")
+
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
+
+    try:
+        t0 = time.time()
+        cap = cv2.VideoCapture(tmp_path)
+        fps_video = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        frames_bgr = []
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frames_bgr.append(frame)
+        cap.release()
+
+        if len(frames_bgr) < 5:
+            raise HTTPException(400, "Video quá ngắn (cần ≥ 5 frame)")
+
+        mid  = len(frames_bgr) // 2
+        bbox = detect_motion_bbox(frames_bgr[max(0, mid - 1)], frames_bgr[mid])
+
+        gray_frames = preprocess_frames(frames_bgr)
+        label, proba_arr, proba_dict = run_inference(gray_frames)
+        inference_ms = round((time.time() - t0) * 1000)
+
+        return {
+            "action":        label,
+            "confidence":    float(max(proba_arr)),
+            "probabilities": proba_dict,
+            "bboxes":        bbox,
+            "n_frames":      len(frames_bgr),
+            "fps":           round(fps_video, 1),
+            "inference_ms":  inference_ms,
+        }
+    finally:
+        os.unlink(tmp_path)
+
+
+# ─── Endpoint: Webcam / base64 frames ─────────────────────────────────────────
+class FramePayload(BaseModel):
+    frames: list[str]   # base64 JPEG strings
+    width:  int = 640
+    height: int = 480
+
+
+@app.post("/api/predict/frames")
+async def predict_frames(payload: FramePayload):
+    _check_model()
+    t0 = time.time()
+    frames_bgr = []
+    for b64 in payload.frames:
+        try:
+            data = base64.b64decode(b64.split(',')[-1])
+            arr  = np.frombuffer(data, np.uint8)
+            img  = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if img is not None:
+                frames_bgr.append(img)
+        except Exception:
+            continue
+
+    if len(frames_bgr) < 5:
+        raise HTTPException(400, "Cần ít nhất 5 frame hợp lệ")
+
+    bbox        = detect_motion_bbox(
+        frames_bgr[-2] if len(frames_bgr) > 1 else None, frames_bgr[-1]
+    )
+    gray_frames = preprocess_frames(frames_bgr)
+    label, proba_arr, proba_dict = run_inference(gray_frames)
+    inference_ms = round((time.time() - t0) * 1000)
+
+    return {
+        "action":        label,
+        "confidence":    float(max(proba_arr)),
+        "probabilities": proba_dict,
+        "bboxes":        bbox,
+        "n_frames":      len(frames_bgr),
+        "inference_ms":  inference_ms,
+    }
+
+
+# ─── Endpoint: Model info ──────────────────────────────────────────────────────
+@app.get("/api/model-info")
+def model_info():
+    default_ablation = {
+        'HOG only':            0.708,
+        'OF only':             0.552,
+        'MHI only':            0.677,
+        'IDT only':            0.312,
+        'HOG+OF':              0.719,
+        'HOG+OF+MHI':          0.771,
+        'ALL (HOG+OF+MHI+IDT)':0.802,
+    }
+    ablation_raw  = MODEL_INFO.get('ablation', default_ablation)
+    feature_dims  = (artifacts or {}).get(
+        'feature_dims', {'hog': 3528, 'of': 24, 'mhi': 1767, 'idt': 96}
+    )
+    return {
+        "classes":       CLASSES,
+        "model_loaded":  model is not None,
+        "test_accuracy": round(MODEL_INFO.get('test_accuracy', 0.802) * 100, 2),
+        "logo_cv_mean":  round(MODEL_INFO.get('logo_cv_mean',  0.776) * 100, 2),
+        "best_params":   MODEL_INFO.get('best_params', {'kernel': 'linear', 'C': 0.1}),
+        "feature_dims":  feature_dims,
+        "ablation":      {k: round(v * 100, 1) for k, v in ablation_raw.items()},
+        "pipeline":      "HOG (3528) + OF (24) + MHI (1767) + IDT (96) → StandardScaler → PCA(330) → SVM(linear, C=0.1)",
+    }
+
+
+# ─── Health check ─────────────────────────────────────────────────────────────
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "model_loaded": model is not None, "classes": CLASSES}
+
+
+# ─── Serve frontend (must come LAST) ──────────────────────────────────────────
+_frontend_dir = pathlib.Path(__file__).parent.parent / "frontend"
+if _frontend_dir.exists():
+    app.mount("/", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
