@@ -111,23 +111,57 @@ async function runAnalysis() {
   setVideoLoading(true);
   document.getElementById('analyzeBtn').disabled = true;
 
-  const form = new FormData();
+  const form     = new FormData();
   form.append('file', currentFile);
 
+  const segments = [];
+  let totalDuration = 0;
+  let totalCount    = 0;
+  const t0 = Date.now();
+
   try {
-    const res = await fetch('/api/predict/video/timeline', { method: 'POST', body: form });
+    const res = await fetch('/api/predict/video/stream', { method: 'POST', body: form });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || `HTTP ${res.status}`);
     }
-    const data = await res.json();
-    lastResult = { ...data, filename: currentFile.name };
-    renderVideoResults(data);
+
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+
+      const parts = buf.split('\n\n');
+      buf = parts.pop();
+
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data: ')) continue;
+        let evt;
+        try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (evt.type === 'start') {
+          totalDuration = evt.duration;
+          totalCount    = evt.total;
+          setVideoLoading(false);
+          prepareResultsPanel(totalDuration, totalCount);
+        } else if (evt.type === 'segment') {
+          segments.push(evt);
+          onSegmentArrived(evt, segments, totalDuration, totalCount);
+        } else if (evt.type === 'done') {
+          finalizeResults(segments, totalDuration, Date.now() - t0);
+        }
+      }
+    }
   } catch (err) {
     alert(`Lỗi phân tích: ${err.message}`);
     console.error(err);
-  } finally {
     setVideoLoading(false);
+  } finally {
     document.getElementById('analyzeBtn').disabled = false;
   }
 }
@@ -145,29 +179,74 @@ function setVideoLoading(on) {
   }
 }
 
-function renderVideoResults(data) {
+function prepareResultsPanel(duration, total) {
   document.getElementById('videoPlaceholder').classList.add('hidden');
-  const content = document.getElementById('videoResultsContent');
-  content.classList.remove('hidden');
+  document.getElementById('videoResultsContent').classList.remove('hidden');
 
-  const meta = CLASS_META[data.action] || { emoji: '🎬' };
+  document.getElementById('resultEmoji').textContent = '⏳';
+  document.getElementById('resultLabel').textContent  = '—';
+  document.getElementById('resultConf').textContent   = `Phân tích 0 / ${total} đoạn…`;
+  updateGauge(0, 'gaugeArc', 'gaugeNum');
+
+  if (probChart) { probChart.destroy(); probChart = null; }
+
+  const section = document.getElementById('timelineSection');
+  section.classList.remove('hidden');
+  document.getElementById('timelineBar').innerHTML =
+    `<div class="tl-pending" style="width:100%"></div>`;
+  document.getElementById('timelineTicks').innerHTML =
+    `<span>0s</span><span>${duration.toFixed(1)}s</span>`;
+}
+
+function onSegmentArrived(seg, allSegs, duration, total) {
+  renderTimeline(allSegs, duration);
+
+  const meta = CLASS_META[seg.action] || { emoji: '🎬' };
   document.getElementById('resultEmoji').textContent = meta.emoji;
-  document.getElementById('resultLabel').textContent = data.action.toUpperCase();
-  document.getElementById('resultConf').textContent  =
-    `Confidence: ${(data.confidence * 100).toFixed(1)}%`;
+  document.getElementById('resultLabel').textContent  = seg.action.toUpperCase();
+  document.getElementById('resultConf').textContent   =
+    `Đoạn ${seg.index + 1} / ${total} — ${(seg.confidence * 100).toFixed(1)}%`;
+  updateGauge(seg.confidence, 'gaugeArc', 'gaugeNum');
 
-  updateGauge(data.confidence, 'gaugeArc', 'gaugeNum');
+  const detail = document.getElementById('loadingDetail');
+  if (detail) detail.textContent = `Đoạn ${seg.index + 1} / ${total}`;
+}
+
+function finalizeResults(segments, duration, elapsedMs) {
+  if (!segments.length) return;
+
+  // Majority vote, tie-break by confidence
+  const counts = {};
+  segments.forEach(s => { counts[s.action] = (counts[s.action] || 0) + 1; });
+  const overall = Object.keys(counts).reduce((a, b) => counts[a] >= counts[b] ? a : b);
+  const best    = segments.filter(s => s.action === overall)
+                          .reduce((a, b) => a.confidence >= b.confidence ? a : b);
+
+  lastResult = {
+    action:        overall,
+    confidence:    best.confidence,
+    probabilities: best.probabilities,
+    filename:      currentFile?.name || '—',
+    n_frames:      null,
+    inference_ms:  elapsedMs,
+  };
+
+  const meta = CLASS_META[overall] || { emoji: '🎬' };
+  document.getElementById('resultEmoji').textContent = meta.emoji;
+  document.getElementById('resultLabel').textContent  = overall.toUpperCase();
+  document.getElementById('resultConf').textContent   =
+    `Confidence: ${(best.confidence * 100).toFixed(1)}%`;
+  updateGauge(best.confidence, 'gaugeArc', 'gaugeNum');
 
   if (!probChart) probChart = createProbabilityChart('probChart', modelClasses);
-  updateProbabilityChart(probChart, data.probabilities);
+  updateProbabilityChart(probChart, best.probabilities);
 
-  renderTimeline(data.segments, data.duration);
-
-  const badge = document.getElementById('speedBadge');
-  badge.classList.remove('hidden');
-  document.getElementById('inferenceTime').textContent = `${data.inference_ms} ms`;
+  document.getElementById('speedBadge').classList.remove('hidden');
+  document.getElementById('inferenceTime').textContent = `${elapsedMs} ms`;
   document.getElementById('frameInfo').textContent =
-    `${data.n_frames} frames${data.fps ? ' · ' + data.fps + ' fps' : ''}`;
+    `${segments.length} đoạn · ${duration.toFixed(1)}s`;
+
+  renderTimeline(segments, duration);
 }
 
 function resetVideoResults() {
@@ -181,11 +260,10 @@ function renderTimeline(segments, duration) {
   const section = document.getElementById('timelineSection');
   const bar     = document.getElementById('timelineBar');
   const ticks   = document.getElementById('timelineTicks');
-  if (!section || !segments || segments.length < 2) {
-    section?.classList.add('hidden');
-    return;
-  }
-  section.classList.remove('hidden');
+  if (!section || !segments || !segments.length) return;
+
+  const analyzedEnd = segments[segments.length - 1].end;
+  const pendingPct  = ((duration - analyzedEnd) / duration * 100).toFixed(2);
 
   bar.innerHTML = segments.map(seg => {
     const pct   = ((seg.end - seg.start) / duration * 100).toFixed(2);
@@ -196,10 +274,13 @@ function renderTimeline(segments, duration) {
       <span class="tl-label">${seg.action}</span>
       <span class="tl-conf">${conf}%</span>
     </div>`;
-  }).join('');
+  }).join('') + (pendingPct > 0.5
+    ? `<div class="tl-pending" style="width:${pendingPct}%"></div>`
+    : '');
 
-  ticks.innerHTML = [0, ...segments.map(s => s.end)]
-    .map(t => `<span>${t.toFixed(1)}s</span>`).join('');
+  const tickTimes = [0, ...segments.map(s => s.end)];
+  if (pendingPct > 0.5) tickTimes.push(duration);
+  ticks.innerHTML = tickTimes.map(t => `<span>${(+t).toFixed(1)}s</span>`).join('');
 }
 
 function resetVideoUpload() {
@@ -377,7 +458,8 @@ function openExportModal() {
   ctx.font      = '10px Inter, sans-serif';
   ctx.textAlign = 'left';
   const ts = new Date().toLocaleString('vi-VN');
-  ctx.fillText(`File: ${lastResult.filename || '—'}  ·  ${lastResult.n_frames} frames  ·  ${lastResult.inference_ms}ms  ·  ${ts}`, 18, H - 14);
+  const framesInfo = lastResult.n_frames != null ? `${lastResult.n_frames} frames` : `${lastResult.inference_ms}ms`;
+  ctx.fillText(`File: ${lastResult.filename || '—'}  ·  ${framesInfo}  ·  ${ts}`, 18, H - 14);
   ctx.textAlign = 'right';
   ctx.fillText('Đại học Bách Khoa Đà Nẵng — 2024/2025', W - 18, H - 14);
 

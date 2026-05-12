@@ -498,6 +498,12 @@ h1,h2,h3,h4,h5 { line-height: 1.25; }
   color: var(--text-l);
   padding: 0 2px;
 }
+.tl-pending {
+  background: repeating-linear-gradient(
+    90deg, #E5E7EB 0px, #E5E7EB 6px, #F3F4F6 6px, #F3F4F6 12px
+  );
+  flex-shrink: 0;
+}
 
 /* ════════════════════════════════════════════════════
    RESPONSIVE

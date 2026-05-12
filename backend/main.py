@@ -4,7 +4,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import joblib
 import cv2
@@ -14,6 +14,8 @@ import tempfile
 import os
 import time
 import pathlib
+import json
+import asyncio
 
 from feature_extractor import extract_all_features, preprocess_frames, detect_motion_bbox
 
@@ -179,6 +181,66 @@ async def predict_video_timeline(file: UploadFile = File(...)):
         }
     finally:
         os.unlink(tmp_path)
+
+
+# ─── Endpoint: Video stream — SSE segment-by-segment ─────────────────────────
+@app.post("/api/predict/video/stream")
+async def predict_video_stream(file: UploadFile = File(...)):
+    _check_model()
+    ext = os.path.splitext(file.filename.lower())[1]
+    if ext not in ('.avi', '.mp4', '.mov', '.mkv', '.webm'):
+        raise HTTPException(400, "Unsupported format. Use .avi / .mp4 / .mov / .webm")
+
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
+
+    try:
+        cap = cv2.VideoCapture(tmp_path)
+        fps_video = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        frames_bgr = []
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frames_bgr.append(frame)
+        cap.release()
+    finally:
+        os.unlink(tmp_path)
+
+    if len(frames_bgr) < 30:
+        raise HTTPException(400, "Video quá ngắn (cần ≥ 30 frame)")
+
+    SEGMENT = 60  # ~2.4s at 25fps
+    valid_starts = [i for i in range(0, len(frames_bgr), SEGMENT)
+                    if len(frames_bgr[i:i + SEGMENT]) >= 15]
+    duration  = round(len(frames_bgr) / fps_video, 2)
+    n_frames  = len(frames_bgr)
+    fps_round = round(fps_video, 1)
+
+    async def generate():
+        yield f"data: {json.dumps({'type':'start','total':len(valid_starts),'duration':duration,'n_frames':n_frames,'fps':fps_round})}\n\n"
+        for idx, seg_start in enumerate(valid_starts):
+            seg_bgr            = frames_bgr[seg_start:seg_start + SEGMENT]
+            gray               = await asyncio.to_thread(preprocess_frames, seg_bgr)
+            label, proba_arr, proba_dict = await asyncio.to_thread(run_inference, gray)
+            seg = {
+                'type':          'segment',
+                'index':         idx,
+                'start':         round(seg_start / fps_video, 2),
+                'end':           round(min(seg_start + SEGMENT, n_frames) / fps_video, 2),
+                'action':        label,
+                'confidence':    float(max(proba_arr)),
+                'probabilities': proba_dict,
+            }
+            yield f"data: {json.dumps(seg)}\n\n"
+        yield f"data: {json.dumps({'type':'done'})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # ─── Endpoint: Webcam / base64 frames ─────────────────────────────────────────
