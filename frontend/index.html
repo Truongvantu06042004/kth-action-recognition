@@ -87,6 +87,11 @@
                 <p class="prob-title">Xác suất từng lớp</p>
                 <canvas id="probChart" height="190"></canvas>
               </div>
+              <div class="timeline-section hidden" id="timelineSection">
+                <p class="prob-title">Timeline hành động</p>
+                <div class="timeline-bar" id="timelineBar"></div>
+                <div class="timeline-ticks" id="timelineTicks"></div>
+              </div>
               <div class="result-footer">
                 <button class="btn btn-outline btn-sm" id="exportBtn">📥 Xuất báo cáo</button>
                 <span class="frame-info" id="frameInfo"></span>
@@ -94,8 +99,8 @@
             </div>
             <div id="videoLoading" class="loading-overlay hidden">
               <div class="spinner"></div>
-              <p>Đang trích xuất đặc trưng…</p>
-              <small>HOG · Optical Flow · MHI · IDT</small>
+              <p>Đang phân tích từng đoạn…</p>
+              <small id="loadingDetail">HOG · Optical Flow · MHI · IDT</small>
             </div>
           </div>
         </div>

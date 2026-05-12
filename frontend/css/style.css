@@ -453,6 +453,53 @@ h1,h2,h3,h4,h5 { line-height: 1.25; }
 .hidden { display: none !important; }
 
 /* ════════════════════════════════════════════════════
+   TIMELINE
+════════════════════════════════════════════════════ */
+.timeline-section { margin-top: 18px; }
+.timeline-bar {
+  display: flex;
+  height: 52px;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 8px 0 4px;
+  border: 1px solid var(--border);
+}
+.tl-segment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  cursor: default;
+  transition: filter .15s;
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px 4px;
+}
+.tl-segment:hover { filter: brightness(1.18); }
+.tl-label {
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  text-align: center;
+}
+.tl-conf {
+  font-size: 9px;
+  opacity: .85;
+  white-space: nowrap;
+}
+.timeline-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-l);
+  padding: 0 2px;
+}
+
+/* ════════════════════════════════════════════════════
    RESPONSIVE
 ════════════════════════════════════════════════════ */
 @media (max-width: 860px) {

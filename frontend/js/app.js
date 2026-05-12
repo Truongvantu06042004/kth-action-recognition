@@ -115,7 +115,7 @@ async function runAnalysis() {
   form.append('file', currentFile);
 
   try {
-    const res = await fetch('/api/predict/video', { method: 'POST', body: form });
+    const res = await fetch('/api/predict/video/timeline', { method: 'POST', body: form });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || `HTTP ${res.status}`);
@@ -161,6 +161,8 @@ function renderVideoResults(data) {
   if (!probChart) probChart = createProbabilityChart('probChart', modelClasses);
   updateProbabilityChart(probChart, data.probabilities);
 
+  renderTimeline(data.segments, data.duration);
+
   const badge = document.getElementById('speedBadge');
   badge.classList.remove('hidden');
   document.getElementById('inferenceTime').textContent = `${data.inference_ms} ms`;
@@ -172,6 +174,32 @@ function resetVideoResults() {
   document.getElementById('videoResultsContent').classList.add('hidden');
   document.getElementById('videoPlaceholder').classList.remove('hidden');
   document.getElementById('speedBadge').classList.add('hidden');
+  document.getElementById('timelineSection')?.classList.add('hidden');
+}
+
+function renderTimeline(segments, duration) {
+  const section = document.getElementById('timelineSection');
+  const bar     = document.getElementById('timelineBar');
+  const ticks   = document.getElementById('timelineTicks');
+  if (!section || !segments || segments.length < 2) {
+    section?.classList.add('hidden');
+    return;
+  }
+  section.classList.remove('hidden');
+
+  bar.innerHTML = segments.map(seg => {
+    const pct   = ((seg.end - seg.start) / duration * 100).toFixed(2);
+    const color = ACTION_COLORS[seg.action] || '#6B7280';
+    const conf  = (seg.confidence * 100).toFixed(0);
+    return `<div class="tl-segment" style="width:${pct}%;background:${color}"
+                 title="${seg.action} ${conf}% · ${seg.start}s–${seg.end}s">
+      <span class="tl-label">${seg.action}</span>
+      <span class="tl-conf">${conf}%</span>
+    </div>`;
+  }).join('');
+
+  ticks.innerHTML = [0, ...segments.map(s => s.end)]
+    .map(t => `<span>${t.toFixed(1)}s</span>`).join('');
 }
 
 function resetVideoUpload() {

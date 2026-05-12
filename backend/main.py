@@ -112,6 +112,75 @@ async def predict_video(file: UploadFile = File(...)):
         os.unlink(tmp_path)
 
 
+# ─── Endpoint: Timeline (segment-by-segment prediction) ──────────────────────
+@app.post("/api/predict/video/timeline")
+async def predict_video_timeline(file: UploadFile = File(...)):
+    _check_model()
+    ext = os.path.splitext(file.filename.lower())[1]
+    if ext not in ('.avi', '.mp4', '.mov', '.mkv', '.webm'):
+        raise HTTPException(400, "Unsupported format. Use .avi / .mp4 / .mov / .webm")
+
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
+
+    try:
+        t0 = time.time()
+        cap = cv2.VideoCapture(tmp_path)
+        fps_video = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        frames_bgr = []
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frames_bgr.append(frame)
+        cap.release()
+
+        if len(frames_bgr) < 30:
+            raise HTTPException(400, "Video quá ngắn (cần ≥ 30 frame)")
+
+        SEGMENT = 60  # ~2.4s at 25fps; resampled to 30 frames inside preprocess
+        segments_out = []
+
+        for seg_start in range(0, len(frames_bgr), SEGMENT):
+            seg_bgr = frames_bgr[seg_start:seg_start + SEGMENT]
+            if len(seg_bgr) < 15:
+                break
+            gray = preprocess_frames(seg_bgr)
+            label, proba_arr, proba_dict = run_inference(gray)
+            segments_out.append({
+                "start":         round(seg_start / fps_video, 2),
+                "end":           round(min(seg_start + SEGMENT, len(frames_bgr)) / fps_video, 2),
+                "action":        label,
+                "confidence":    float(max(proba_arr)),
+                "probabilities": proba_dict,
+            })
+
+        # Overall: majority vote, tie-break by confidence
+        vote_counts = {}
+        for s in segments_out:
+            vote_counts[s["action"]] = vote_counts.get(s["action"], 0) + 1
+        overall_action = max(vote_counts, key=vote_counts.get)
+        best_seg = max(
+            (s for s in segments_out if s["action"] == overall_action),
+            key=lambda s: s["confidence"]
+        )
+
+        inference_ms = round((time.time() - t0) * 1000)
+        return {
+            "action":        overall_action,
+            "confidence":    best_seg["confidence"],
+            "probabilities": best_seg["probabilities"],
+            "segments":      segments_out,
+            "n_frames":      len(frames_bgr),
+            "fps":           round(fps_video, 1),
+            "duration":      round(len(frames_bgr) / fps_video, 2),
+            "inference_ms":  inference_ms,
+        }
+    finally:
+        os.unlink(tmp_path)
+
+
 # ─── Endpoint: Webcam / base64 frames ─────────────────────────────────────────
 class FramePayload(BaseModel):
     frames: list[str]   # base64 JPEG strings
