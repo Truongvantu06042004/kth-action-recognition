@@ -506,6 +506,22 @@ h1,h2,h3,h4,h5 { line-height: 1.25; }
 }
 
 /* ════════════════════════════════════════════════════
+   WEBCAM SNAPSHOT
+════════════════════════════════════════════════════ */
+.snapshot-wrap   { margin: 10px 0; border-radius: 8px; overflow: hidden; }
+.snapshot-inner  { position: relative; display: block; }
+.snapshot-img    { width: 100%; display: block; border-radius: 8px; }
+.snapshot-overlay {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 8px 10px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.72));
+  border-radius: 0 0 8px 8px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.snapshot-overlay span:first-child { color:#fff; font-size:12px; font-weight:700; }
+.snapshot-overlay span:last-child  { color:rgba(255,255,255,.75); font-size:10px; }
+
+/* ════════════════════════════════════════════════════
    RESPONSIVE
 ════════════════════════════════════════════════════ */
 @media (max-width: 860px) {

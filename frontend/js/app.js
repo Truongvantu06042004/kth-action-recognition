@@ -312,6 +312,15 @@ function initWebcamControls() {
     const el = document.getElementById('camAnalyzing');
     e.detail ? el.classList.remove('hidden') : el.classList.add('hidden');
   });
+  document.addEventListener('webcam:snapshot', e => {
+    const wrap = document.getElementById('snapshotWrap');
+    const img  = document.getElementById('snapshotImg');
+    if (!wrap || !img) return;
+    wrap.classList.remove('hidden');
+    img.src = e.detail.snapshot;
+    document.getElementById('snapshotTs').textContent    = e.detail.ts;
+    document.getElementById('snapshotLabel').textContent = '⏳ Đang phân tích…';
+  });
 }
 
 async function startCamera() {
@@ -352,6 +361,10 @@ function onLivePrediction(data) {
   document.getElementById('liveLabel').textContent = data.action.toUpperCase();
   document.getElementById('liveConf').textContent  =
     `${(data.confidence * 100).toFixed(1)}%  ·  ${data.inference_ms}ms`;
+
+  // Update snapshot overlay label
+  const labelEl = document.getElementById('snapshotLabel');
+  if (labelEl) labelEl.textContent = `${meta.emoji} ${data.action.toUpperCase()}  ${(data.confidence * 100).toFixed(0)}%`;
 
   updateDonutChart(donutChart, data.probabilities);
   pushHistory(data);
