@@ -169,10 +169,10 @@ function createDonutChart(canvasId, classes) {
       cutout: '60%',
       plugins: {
         legend: {
-          position: 'right',
+          position: 'bottom',
           labels: {
             font: { size: 11, family: 'Inter' },
-            padding: 8, color: '#374151',
+            padding: 10, color: '#374151',
             generateLabels(chart) {
               return chart.data.labels.map((lbl, i) => ({
                 text: `${lbl}  ${(chart.data.datasets[0].data[i] * 100).toFixed(0)}%`,

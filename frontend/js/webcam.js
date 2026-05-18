@@ -15,7 +15,7 @@ class WebcamController {
     this._rafId           = null;
     this._lastPredictTime = null;
     this.CAPTURE_FRAMES   = 30;
-    this.PREDICT_INTERVAL = 5000; // ms between predictions
+    this.PREDICT_INTERVAL = 10000; // ms between predictions
   }
 
   async start() {

@@ -26,12 +26,11 @@
   <div class="container">
     <div class="section-header">
       <h2>Demo Nhận Dạng Hành Động</h2>
-      <p class="section-sub">Tải lên video hoặc dùng webcam để nhận dạng thời gian thực</p>
     </div>
 
     <div class="tab-nav" id="demoTabNav">
-      <button class="tab-btn active" data-group="demo" data-tab="video">📹 Upload Video</button>
-      <button class="tab-btn"        data-group="demo" data-tab="webcam">📷 Webcam Live</button>
+      <button class="tab-btn active" data-group="demo" data-tab="video">Upload Video</button>
+      <button class="tab-btn"        data-group="demo" data-tab="webcam">Webcam Live</button>
     </div>
 
     <!-- ─── VIDEO UPLOAD ─── -->
@@ -41,7 +40,6 @@
         <div>
           <div class="drop-zone" id="dropZone">
             <input type="file" id="fileInput" accept=".avi,.mp4,.mov,.mkv,.webm" hidden>
-            <div class="drop-icon">🎬</div>
             <p class="drop-text">Kéo thả video vào đây</p>
             <p class="drop-hint">hoặc <button class="link-btn" id="browseBtn">chọn file</button> từ máy tính</p>
             <p class="drop-formats">Hỗ trợ: .avi · .mp4 · .mov · .webm · .mkv</p>
@@ -50,14 +48,14 @@
             <video id="videoPlayer" controls preload="metadata"></video>
             <div class="video-meta-row">
               <div class="video-meta" id="videoMeta"></div>
-              <button class="btn btn-outline btn-sm" id="changeVideoBtn">🔄 Đổi video</button>
+              <button class="btn btn-outline btn-sm" id="changeVideoBtn">Đổi video</button>
             </div>
           </div>
           <button class="btn btn-primary btn-block" id="analyzeBtn" disabled>
-            <span>🔍</span> Phân tích ngay
+            Phân tích ngay
           </button>
           <div class="speed-badge hidden" id="speedBadge">
-            <span>⚡ CPU Mode</span>
+            <span>CPU Mode</span>
             <span id="inferenceTime">— ms</span>
           </div>
         </div>
@@ -93,7 +91,7 @@
                 <div class="timeline-ticks" id="timelineTicks"></div>
               </div>
               <div class="result-footer">
-                <button class="btn btn-outline btn-sm" id="exportBtn">📥 Xuất báo cáo</button>
+                <button class="btn btn-outline btn-sm" id="exportBtn">Xuất báo cáo</button>
                 <span class="frame-info" id="frameInfo"></span>
               </div>
             </div>
@@ -116,7 +114,6 @@
             <video id="webcamVideo" autoplay muted playsinline style="display:none"></video>
             <canvas id="webcamCanvas"></canvas>
             <div class="cam-ph" id="camPh">
-              <div class="ph-icon">📷</div>
               <p>Nhấn "Bật Camera" để bắt đầu</p>
             </div>
             <div class="cam-live-tag hidden" id="camLiveTag"><span class="blink-dot"></span>LIVE</div>
@@ -125,17 +122,16 @@
             </div>
           </div>
           <div class="cam-controls">
-            <button class="btn btn-success" id="startCamBtn">🎬 Bật Camera</button>
-            <button class="btn btn-danger  hidden" id="stopCamBtn">⏹ Tắt Camera</button>
+            <button class="btn btn-success" id="startCamBtn">Bật Camera</button>
+            <button class="btn btn-danger  hidden" id="stopCamBtn">Tắt Camera</button>
           </div>
-          <p class="cam-hint">⚡ Tự động dự đoán mỗi 2.5 giây · cần ≥30 frame</p>
+          <p class="cam-hint">Tự động phân tích mỗi 10 giây · Đứng trong khung hình, thực hiện 1 hành động liên tục</p>
         </div>
         <!-- Right -->
         <div>
           <div class="results-panel">
-            <h3 class="live-header">⚡ Live Prediction</h3>
+            <h3 class="live-header">Live Prediction</h3>
             <div id="livePlaceholder" class="results-placeholder">
-              <div class="ph-icon">📡</div>
               <p>Đang chờ tín hiệu webcam…</p>
             </div>
             <div id="liveData" class="hidden">
@@ -156,11 +152,11 @@
                 </div>
               </div>
               <div class="donut-wrap">
-                <canvas id="donutChart" width="220" height="220"></canvas>
+                <canvas id="donutChart" width="260" height="300"></canvas>
               </div>
             </div>
             <div class="history-wrap">
-              <p class="history-title">📊 Lịch sử (10 gần nhất)</p>
+              <p class="history-title">Lịch sử gần nhất</p>
               <div class="history-chips" id="historyChips">
                 <span class="hist-empty">Chưa có dự đoán nào</span>
               </div>
@@ -172,18 +168,16 @@
   </div>
 </section>
 
-
-
 <!-- ══════════════════════════════════════ EXPORT MODAL -->
 <div class="modal-bg hidden" id="exportModal">
   <div class="modal-box">
     <div class="modal-hdr">
-      <h3>📥 Xuất Báo Cáo</h3>
+      <h3>Xuất Báo Cáo</h3>
       <button class="modal-close-btn" id="modalClose">✕</button>
     </div>
     <canvas id="exportCanvas" style="width:100%;border-radius:8px;border:1px solid #E5E7EB"></canvas>
     <div class="modal-ftr">
-      <button class="btn btn-primary" id="downloadBtn">⬇️ Tải PNG</button>
+      <button class="btn btn-primary" id="downloadBtn">Tải PNG</button>
       <button class="btn btn-outline" id="modalCancelBtn">Đóng</button>
     </div>
   </div>
