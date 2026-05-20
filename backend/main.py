@@ -320,6 +320,14 @@ def health():
 
 
 # ─── Serve frontend (must come LAST) ──────────────────────────────────────────
+from fastapi.responses import HTMLResponse
+
 _frontend_dir = pathlib.Path(__file__).parent.parent / "frontend"
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_index():
+    html = (_frontend_dir / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(content=html, headers={"Cache-Control": "no-store"})
+
 if _frontend_dir.exists():
     app.mount("/", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
