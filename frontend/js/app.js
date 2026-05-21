@@ -154,6 +154,8 @@ async function runAnalysis() {
           onSegmentArrived(evt, segments, totalDuration, totalCount);
         } else if (evt.type === 'done') {
           finalizeResults(segments, totalDuration, Date.now() - t0);
+        } else if (evt.type === 'error') {
+          throw new Error(evt.message || 'Lỗi không xác định từ server');
         }
       }
     }
