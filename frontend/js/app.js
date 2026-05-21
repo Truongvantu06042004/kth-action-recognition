@@ -153,6 +153,7 @@ async function runAnalysis() {
           segments.push(evt);
           onSegmentArrived(evt, segments, totalDuration, totalCount);
         } else if (evt.type === 'done') {
+          if (evt.duration) totalDuration = evt.duration;
           finalizeResults(segments, totalDuration, Date.now() - t0);
         } else if (evt.type === 'error') {
           throw new Error(evt.message || 'Lỗi không xác định từ server');

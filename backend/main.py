@@ -195,55 +195,63 @@ async def predict_video_stream(file: UploadFile = File(...)):
         tmp.write(await file.read())
         tmp_path = tmp.name
 
-    def _read_frames(path):
-        cap = cv2.VideoCapture(path)
-        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+    SEGMENT = 60  # ~2.4s at 25fps
+
+    def _read_segment(cap):
+        """Read one segment of SEGMENT frames from an open VideoCapture."""
         frames = []
-        while cap.isOpened():
+        for _ in range(SEGMENT):
             ret, frame = cap.read()
             if not ret:
                 break
             frames.append(frame)
-        cap.release()
-        return frames, fps
+        return frames
 
     async def generate():
+        cap = cv2.VideoCapture(tmp_path)
         try:
-            # Heavy frame reading runs in a thread so headers are sent immediately
-            frames_bgr, fps_video = await asyncio.to_thread(_read_frames, tmp_path)
+            fps_video    = cap.get(cv2.CAP_PROP_FPS) or 25.0
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+            est_total    = max(1, total_frames // SEGMENT) if total_frames > 0 else 1
+            duration     = round(total_frames / fps_video, 2) if total_frames > 0 else 0
 
-            if len(frames_bgr) < 30:
-                yield f"data: {json.dumps({'type':'error','message':'Video quá ngắn (cần ≥ 30 frame)'})}\n\n"
-                return
+            yield f"data: {json.dumps({'type':'start','total':est_total,'duration':duration,'n_frames':total_frames,'fps':round(fps_video,1)})}\n\n"
 
-            SEGMENT = 60  # ~2.4s at 25fps
-            valid_starts = [i for i in range(0, len(frames_bgr), SEGMENT)
-                            if len(frames_bgr[i:i + SEGMENT]) >= 15]
-            duration  = round(len(frames_bgr) / fps_video, 2)
-            n_frames  = len(frames_bgr)
-            fps_round = round(fps_video, 1)
+            idx       = 0
+            frame_pos = 0
 
-            yield f"data: {json.dumps({'type':'start','total':len(valid_starts),'duration':duration,'n_frames':n_frames,'fps':fps_round})}\n\n"
+            while True:
+                # Read one segment at a time — only ~60 frames in RAM at once
+                seg_bgr = await asyncio.to_thread(_read_segment, cap)
+                if len(seg_bgr) < 15:
+                    break
 
-            for idx, seg_start in enumerate(valid_starts):
-                seg_bgr = frames_bgr[seg_start:seg_start + SEGMENT]
-                gray    = await asyncio.to_thread(preprocess_frames, seg_bgr)
+                gray = await asyncio.to_thread(preprocess_frames, seg_bgr)
                 label, proba_arr, proba_dict = await asyncio.to_thread(run_inference, gray)
+
+                seg_end = frame_pos + len(seg_bgr)
                 seg = {
                     'type':          'segment',
                     'index':         idx,
-                    'start':         round(seg_start / fps_video, 2),
-                    'end':           round(min(seg_start + SEGMENT, n_frames) / fps_video, 2),
+                    'start':         round(frame_pos / fps_video, 2),
+                    'end':           round(seg_end / fps_video, 2),
                     'action':        label,
                     'confidence':    float(max(proba_arr)),
                     'probabilities': proba_dict,
                 }
                 yield f"data: {json.dumps(seg)}\n\n"
 
-            yield f"data: {json.dumps({'type':'done'})}\n\n"
+                del seg_bgr  # release frames immediately
+                frame_pos = seg_end
+                idx += 1
+
+            # Send actual duration in done event (CAP_PROP_FRAME_COUNT can be 0 for some formats)
+            actual_duration = round(frame_pos / fps_video, 2)
+            yield f"data: {json.dumps({'type':'done','n_frames':frame_pos,'duration':actual_duration})}\n\n"
         except Exception as exc:
             yield f"data: {json.dumps({'type':'error','message':str(exc)})}\n\n"
         finally:
+            cap.release()
             try:
                 os.unlink(tmp_path)
             except OSError:
